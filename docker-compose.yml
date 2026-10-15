@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: max_bot_postgres
+    environment:
+      POSTGRES_DB: max_bot_db
+      POSTGRES_USER: maxbot
+      POSTGRES_PASSWORD: maxbot123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maxbot -d max_bot_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Redis закомментирован, так как сейчас не используется
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: max_bot_redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
+  #   restart: unless-stopped
+
+  bot:
+    build: ./bot
+    container_name: max_bot_worker
+    environment:
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN}
+      DATABASE_URL: postgresql+asyncpg://maxbot:maxbot123@postgres:5432/max_bot_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  admin:
+    build: ./admin
+    container_name: max_bot_admin
+    environment:
+      DATABASE_URL: postgresql://maxbot:maxbot123@postgres:5432/max_bot_db
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:
