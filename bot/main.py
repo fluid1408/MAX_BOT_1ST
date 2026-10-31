@@ -1,5 +1,6 @@
 import asyncio
 import os
+from sqlalchemy import text
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -60,6 +61,33 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
     print("✅ База данных инициализирована")
 
+async def seed_db():
+    """Автоматическое заполнение базы при первом запуске"""
+    async with AsyncSessionLocal() as db:
+        # Проверяем, есть ли уже кнопки в базе
+        result = await db.execute(text("SELECT COUNT(*) FROM buttons"))
+        count = result.scalar()
+        
+        if count > 0:
+            print("✅ База данных уже заполнена, пропускаем сидирование.")
+            return
+
+        print("⏳ База пуста. Заполняем начальными данными...")
+        
+        # Проверяем, есть ли файл seed.sql в папке с проектом
+        if os.path.exists("seed.sql"):
+            with open("seed.sql", "r", encoding="utf-8") as f:
+                sql_script = f.read()
+            
+            # Выполняем скрипт (разбиваем по точкам с запятой для SQLite)
+            # В SQLite нельзя выполнить несколько запросов сразу через execute
+            for statement in sql_script.split(";"):
+                if statement.strip():
+                    await db.execute(text(statement))
+            await db.commit()
+            print("✅ База данных успешно заполнена!")
+        else:
+            print("❌ Файл seed.sql не найден. База останется пустой.")
 
 async def get_answer(button_id: str):
     async with AsyncSessionLocal() as db:
@@ -184,6 +212,7 @@ async def on_start(event: MessageCreated):
 
 async def main():
     await init_db()
+    await seed_db() 
     await bot.delete_webhook()
     print("🤖 Бот запущен и готов к работе!")
     await dp.start_polling(bot)
