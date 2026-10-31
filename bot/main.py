@@ -14,7 +14,11 @@ from maxapi.utils.inline_keyboard import InlineKeyboardBuilder
 
 load_dotenv()
 BOT_TOKEN = os.getenv("MAX_BOT_TOKEN")
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./bot.db")
+
+# SQLite не поддерживает некоторые параметры пула, но базово работает так:
+engine = create_async_engine(DATABASE_URL, echo=False)
+AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 # Модели
 from sqlalchemy.orm import DeclarativeBase
